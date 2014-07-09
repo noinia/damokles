@@ -1,5 +1,5 @@
 .item {
-    height: 800px;
+    height: 725px;
     width: 120px;
     min-width: 100px;
     float: left;
@@ -30,7 +30,7 @@
 }
 
 .progress {
-    height: 60%;
+    height: 500px;
     clear: both;
     vertical-align: bottom;
     position: relative;
@@ -79,6 +79,7 @@
     border-left: 3px solid white;
     margin-bottom: 112px;
     margin-left: 15px;
+    max-height: 300px;
 }
 
 
