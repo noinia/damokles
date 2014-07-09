@@ -1,0 +1,135 @@
+.item {
+    height: 800px;
+    width: 120px;
+    min-width: 100px;
+    float: left;
+    clear: none;
+    margin-right: 3px;
+    padding-top: 3px;
+}
+
+.islate {
+    background-color: red;
+}
+
+.hasonly {
+    background-color: #ff9900;
+}
+
+.hasstill {
+    background-color: #ffcc00;
+}
+
+
+.hasto {
+    background-color: #ffff00;
+}
+
+.maystill {
+    background-color: #ccff00;
+}
+
+.progress {
+    height: 60%;
+    clear: both;
+    vertical-align: bottom;
+    position: relative;
+}
+
+.pants {
+    width: 100%;
+    padding-top: 2px;
+    height: 60px;
+    background-position: center bottom;
+    background-image: url("images/broek.gif");
+    background-repeat: no-repeat;
+    float: bottom;
+}
+
+.islate .pants {
+    background-image: url("images/broekzwart.gif");
+}
+
+.info {
+    text-align: center;
+    padding-top: 5px;
+}
+
+
+.sword {
+    width: 100%;
+    background-position: center top;
+    background-image: url("images/zwaard.gif");
+    background-repeat: no-repeat;
+    clear: both;
+    position: absolute;
+    bottom: 0;
+}
+
+.dummy {
+    height: 71px;
+    width: 100%;
+}
+
+
+.indicator {
+    width: 10px;
+    clear: both;
+    display: block;
+    border-left: 3px solid white;
+    margin-bottom: 112px;
+    margin-left: 15px;
+}
+
+
+.picture {
+    width: 100%;
+    height: 112px;
+    background-position: center;
+    background-image: url("images/rarekop.gif");
+    background-repeat: no-repeat;
+    clear: both;
+    position: absolute;
+    bottom: 0;
+
+}
+
+.picture img {
+    /* width: 84px; */
+    height: 112px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    border: 0;
+    overflow: hidden;
+}
+
+
+.islate .picture {
+    bottom: 71px;
+}
+
+.islate .sword {
+    bottom: 0;
+    height: 71px;
+}
+
+.islate .indicator {
+    display: none;
+}
+
+.islate .dummy {
+    display: none;
+}
+
+.forever {
+    background-position: center;
+    background-image: url("images/forever.gif");
+    background-repeat: no-repeat;
+}
+
+.jail {
+    background-position: center;
+    background-image: url("images/jail.gif");
+    background-repeat: no-repeat;
+}
