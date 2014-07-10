@@ -5,11 +5,15 @@ module Main where
 
 import Control.Applicative
 
+import Data.Char(toLower)
+import Data.Maybe(fromMaybe)
 import Data.Monoid
 import Data.String
 import Data.Time.Calendar(fromGregorian, diffDays)
 
 import Data.Time.LocalTime
+
+import Text.StringTemplate
 
 
 import qualified Data.Time.Calendar as C
@@ -89,22 +93,26 @@ instance Bounded Height where
 
 
 
-data ProgresState = MayStill | HasTo | HasStill | HasOnly | IsLate
-                  deriving (Read,Show,Eq,Ord)
+data ProgressState = MayStill | HasTo | HasStill | HasOnly | IsLate
+                   deriving (Read,Show,Eq,Ord)
 
-progresState           :: Year -> ProgresState
-progresState y | y < 0 = IsLate
-progresState 0         = HasOnly
-progresState 1         = HasStill
-progresState 2         = HasTo
-progresState _         = MayStill
+
+toCssClass :: ProgressState -> String
+toCssClass = map toLower . show
+
+progressState           :: Year -> ProgressState
+progressState y | y < 0 = IsLate
+progressState 0         = HasOnly
+progressState 1         = HasStill
+progressState 2         = HasTo
+progressState _         = MayStill
 
 
 newtype Message = Message String
                   deriving (Show,Eq,Ord,Read,IsString)
 
 
-message     :: ProgresState -> (Year,Month,Day) -> Message
+message     :: ProgressState -> (Year,Month,Day) -> Message
 message s t = Message $ message' s t
 
 message' IsLate   _      = "wordt verondersteld zijn proefschrift te hebben afgerond."
@@ -125,9 +133,13 @@ message' s (y,m,d) = show (s,y,m,d)
 
 
 
-progres   :: Person -> IO (ProgresState,Message)
-progres p = (\t@(y,_,_) -> let s = progresState y in (s, message s t))
-            <$> timeLeft p
+progress   :: Person -> IO (ProgressState,Message)
+progress p = (\t@(y,_,_) -> let s = progressState y in (s, message s t))
+             <$> timeLeft p
+
+
+personData   :: Person -> IO (Person,ProgressState,Message)
+personData p = (\(s,m) -> (p,s,m)) <$> progress p
 
 --------------------------------------------------------------------------------
 
@@ -136,4 +148,35 @@ users = [ Person "staals" Male $ fromDate 2015 08 31
         , Person "bash"   Male $ fromDate 2012 08 31
         ]
 
-main = do print "woei"
+
+
+templateDir = "templates/"
+templateExt = "html"
+
+
+loadTemplates :: IO (STGroup String)
+loadTemplates = directoryGroupExt templateDir templateExt
+
+
+itemAttrs                        :: (Person,ProgressState,Message) -> [(String,String)]
+itemAttrs ((Person u g d), p, m) = [ ("progressState", toCssClass p)
+                                   , ("height", show 100)
+                                   , ("picture", unUI u)
+                                   , ("homepage", unUI u)
+                                   , ("name", unUI u)
+                                   , ("message", show m)
+                                   ]
+
+
+mkHtml                    :: [(Person,ProgressState,Message)] -> STGroup String -> Maybe String
+mkHtml userData templates = render' <$> getStringTemplate "item"     templates
+                                    <*> getStringTemplate "damokles" templates
+  where
+    render' itemT = let itemsHtml = [ render $ setManyAttrib (itemAttrs ud) itemT
+                                    | ud <- userData
+                                    ]
+                    in render . setManyAttrib [("items", itemsHtml)]
+
+main = do mHtml <- mkHtml <$> mapM personData users
+                          <*> loadTemplates
+          print $ fromMaybe mempty mHtml
