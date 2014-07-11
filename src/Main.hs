@@ -24,13 +24,21 @@ import qualified Data.Text.Lazy     as T
 import qualified Data.Text.Lazy.IO  as IO
 
 --------------------------------------------------------------------------------
+-- | Settings
 
-newtype UserId = UserId { unUI :: Text }
-               deriving (Read,Show,Eq,IsString)
+users = [ Person "staals" "Frank Staals" Male $ fromDate 2015 08 31
+        , Person "bash"   "Bas de Haas"  Male $ fromDate 2012 08 31
+        ]
 
 
-data Gender = Male | Female
-                     deriving (Read,Show,Eq)
+
+templateDir = "templates/"
+htmlTemplateExt    = ".html"
+messageTemplateExt = ".st"
+
+outputFile = "html/generated.html"
+
+--------------------------------------------------------------------------------
 
 newtype Date = Date { unDay :: C.Day }
                deriving (Eq,Ord,Show)
@@ -64,7 +72,15 @@ a `timeUntil` b = collectTime $ a `daysUntil` b
 -- adding durations/days starting at a, and running until we hit b.
 
 instance Read Date where
-  readsPrec = undefined
+  readsPrec = undefined -- TODO
+
+--------------------------------------------------------------------------------
+
+newtype UserId = UserId { unUI :: Text }
+               deriving (Read,Show,Eq,IsString)
+
+data Gender = Male | Female
+                     deriving (Read,Show,Eq)
 
 newtype Name = Name { unN :: Text }
                deriving (Show,Eq,Ord,Read,IsString)
@@ -85,7 +101,20 @@ daysLeft p = (`daysUntil` dueDate p) <$> today
 timeLeft   :: Person -> IO (Year,Month,Day)
 timeLeft p = (`timeUntil` dueDate p) <$> today
 
+homepage   :: Person -> Text
+homepage p = let us = unUI . userId $ p in
+             format "http://www.cs.uu.nl/staff/{}.html" $ Only us
 
+--------------------------------------------------------------------------------
+-- | Buisness logic
+
+
+data RenderData = RenderData { person   :: Person
+                             , height   :: Height
+                             , progress :: ProgressState
+                             , message  :: Message
+                             }
+                  deriving (Show,Eq)
 
 newtype Height = Height { unH :: Int }
                  deriving (Read,Show,Eq,Ord, Num, Integral, Real, Enum)
@@ -99,9 +128,6 @@ instance Bounded Height where
 data ProgressState = MayStill | HasTo | HasStill | HasOnly | IsLate
                    deriving (Read,Show,Eq,Ord)
 
-
-showT :: Show a => a -> Text
-showT = T.pack . show
 
 toCssClass :: ProgressState -> Text
 toCssClass = T.toLower . showT
@@ -118,8 +144,8 @@ newtype Message = Message { unM :: Text }
                   deriving (Show,Eq,Ord,Read,IsString)
 
 
-message     :: ProgressState -> (Year,Month,Day) -> Message
-message s t = Message $ message' s t
+mkMessage     :: ProgressState -> (Year,Month,Day) -> Message
+mkMessage s t = Message $ message' s t
 
 message' IsLate   _      = "wordt verondersteld zijn proefschrift te hebben afgerond."
 message' HasOnly (0,m,d) = mconcat [ "heeft nog maar "
@@ -136,54 +162,40 @@ message' HasOnly (y,m,d) = mconcat [ "heeft nog maar ", showT y, " jaar"
                                   ]
 message' s (y,m,d) = showT (s,y,m,d)
 
-homepage   :: Person -> Text
-homepage p = let us = unUI . userId $ p in
-             format "http://www.cs.uu.nl/staff/{}.html" $ Only us
 
-progress   :: Person -> IO (ProgressState,Message)
-progress p = (\t@(y,_,_) -> let s = progressState y in (s, message s t))
-             <$> timeLeft p
+renderData   :: Person -> IO RenderData
+renderData p = renderData' <$> timeLeft p
+  where
+    renderData' t@(y,_,_) = let s = progressState y in
+                            RenderData p (calcHeight t) s (mkMessage s t)
 
-
-personData   :: Person -> IO (Person,ProgressState,Message)
-personData p = (\(s,m) -> (p,s,m)) <$> progress p
+calcHeight = const 200
 
 --------------------------------------------------------------------------------
-
-
-users = [ Person "staals" "Frank Staals" Male $ fromDate 2015 08 31
-        , Person "bash"   "Bas de Haas"  Male $ fromDate 2012 08 31
-        ]
-
-
-
-templateDir = "templates/"
-htmlTemplateExt    = ".html"
-messageTemplateExt = ".st"
-
-outputFile = "html/generated.html"
-
-
+-- | Html templates
 
 loadTemplates :: IO (STGroup Text)
 loadTemplates = mergeSTGroups <$> directoryGroupExt htmlTemplateExt    templateDir
                               <*> directoryGroupExt messageTemplateExt templateDir
 
 
-itemAttrs                        :: (Person,ProgressState,Message) -> [(String,Text)]
-itemAttrs (per@(Person u n g d), p, m) = [ ("progressState", toCssClass p)
-                                     , ("height", showT 100)
-                                     , ("picture", unUI u)
-                                     , ("homepage", homepage per)
-                                     , ("name", unN n)
-                                     , ("message", unM m)
-                                     ]
+itemAttrs                                       :: RenderData -> [(String,Text)]
+itemAttrs (RenderData p@(Person u n g d) h s m) = [ ("progressState", toCssClass s)
+                                                  , ("height", showT . unH $ h)
+                                                  , ("picture", unUI u)
+                                                  , ("homepage", homepage p)
+                                                  , ("name", unN n)
+                                                  , ("message", unM m)
+                                                  ]
 
+--------------------------------------------------------------------------------
+-- | The main program
 
-sortOn   :: Ord b => (a -> b) -> [a] -> [a]
-sortOn k = sortBy (compare `on` k)
+main = do mHtml <- mkHtml <$> mapM renderData (sortOn dueDate users)
+                          <*> loadTemplates
+          IO.writeFile outputFile $ fromMaybe mempty mHtml
 
-mkHtml                    :: [(Person,ProgressState,Message)] -> STGroup Text -> Maybe Text
+mkHtml                    :: [RenderData] -> STGroup Text -> Maybe Text
 mkHtml userData templates = render' <$> getStringTemplate "item"     templates
                                     <*> getStringTemplate "damokles" templates
   where
@@ -192,8 +204,11 @@ mkHtml userData templates = render' <$> getStringTemplate "item"     templates
                                     ]
                     in render . setManyAttrib [("items", itemsHtml)]
 
+--------------------------------------------------------------------------------
+-- | Generic utility functions
 
+showT :: Show a => a -> Text
+showT = T.pack . show
 
-main = do mHtml <- mkHtml <$> mapM personData (sortOn dueDate users)
-                          <*> loadTemplates
-          IO.writeFile outputFile $ fromMaybe mempty mHtml
+sortOn   :: Ord b => (a -> b) -> [a] -> [a]
+sortOn k = sortBy (compare `on` k)
