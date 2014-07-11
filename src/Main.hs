@@ -5,7 +5,9 @@ module Main where
 
 import Control.Applicative
 
+import Data.Function(on)
 import Data.Char(toLower)
+import Data.List(sortBy)
 import Data.Maybe(fromMaybe)
 import Data.Monoid
 import Data.String
@@ -108,7 +110,7 @@ progressState 2         = HasTo
 progressState _         = MayStill
 
 
-newtype Message = Message String
+newtype Message = Message { unM :: String }
                   deriving (Show,Eq,Ord,Read,IsString)
 
 
@@ -151,11 +153,13 @@ users = [ Person "staals" Male $ fromDate 2015 08 31
 
 
 templateDir = "templates/"
-templateExt = "html"
+templateExt = ".html"
+
+outputFile = "html/generated.html"
 
 
 loadTemplates :: IO (STGroup String)
-loadTemplates = directoryGroupExt templateDir templateExt
+loadTemplates = directoryGroupExt templateExt templateDir
 
 
 itemAttrs                        :: (Person,ProgressState,Message) -> [(String,String)]
@@ -164,9 +168,12 @@ itemAttrs ((Person u g d), p, m) = [ ("progressState", toCssClass p)
                                    , ("picture", unUI u)
                                    , ("homepage", unUI u)
                                    , ("name", unUI u)
-                                   , ("message", show m)
+                                   , ("message", unM m)
                                    ]
 
+
+sortOn   :: Ord b => (a -> b) -> [a] -> [a]
+sortOn k = sortBy (compare `on` k)
 
 mkHtml                    :: [(Person,ProgressState,Message)] -> STGroup String -> Maybe String
 mkHtml userData templates = render' <$> getStringTemplate "item"     templates
@@ -177,6 +184,8 @@ mkHtml userData templates = render' <$> getStringTemplate "item"     templates
                                     ]
                     in render . setManyAttrib [("items", itemsHtml)]
 
-main = do mHtml <- mkHtml <$> mapM personData users
+
+
+main = do mHtml <- mkHtml <$> mapM personData (sortOn dueDate users)
                           <*> loadTemplates
-          print $ fromMaybe mempty mHtml
+          writeFile outputFile $ fromMaybe mempty mHtml
