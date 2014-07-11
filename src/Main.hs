@@ -6,23 +6,26 @@ module Main where
 import Control.Applicative
 
 import Data.Function(on)
-import Data.Char(toLower)
 import Data.List(sortBy)
 import Data.Maybe(fromMaybe)
 import Data.Monoid
-import Data.String
-import Data.Time.Calendar(fromGregorian, diffDays)
+import Data.String(IsString(..))
 
+import Data.Time.Calendar(fromGregorian, diffDays)
 import Data.Time.LocalTime
 
+import Data.Text.Lazy(Text)
+import Data.Text.Format
 import Text.StringTemplate
 
 
 import qualified Data.Time.Calendar as C
+import qualified Data.Text.Lazy     as T
+import qualified Data.Text.Lazy.IO  as IO
 
 --------------------------------------------------------------------------------
 
-newtype UserId = UserId { unUI :: String }
+newtype UserId = UserId { unUI :: Text }
                deriving (Read,Show,Eq,IsString)
 
 
@@ -60,17 +63,15 @@ a `timeUntil` b = collectTime $ a `daysUntil` b
 -- TODO: We can make this more precise (e.g. taking care of leap-years etc.) by
 -- adding durations/days starting at a, and running until we hit b.
 
-
-
-
--- instance Show Date where
---   show = showGregorian . unDay
-
 instance Read Date where
   readsPrec = undefined
 
+newtype Name = Name { unN :: Text }
+               deriving (Show,Eq,Ord,Read,IsString)
+
 
 data Person = Person { userId  :: UserId
+                     , name    :: Name
                      , gender  :: Gender
                      , dueDate :: Date
                      }
@@ -99,8 +100,11 @@ data ProgressState = MayStill | HasTo | HasStill | HasOnly | IsLate
                    deriving (Read,Show,Eq,Ord)
 
 
-toCssClass :: ProgressState -> String
-toCssClass = map toLower . show
+showT :: Show a => a -> Text
+showT = T.pack . show
+
+toCssClass :: ProgressState -> Text
+toCssClass = T.toLower . showT
 
 progressState           :: Year -> ProgressState
 progressState y | y < 0 = IsLate
@@ -110,7 +114,7 @@ progressState 2         = HasTo
 progressState _         = MayStill
 
 
-newtype Message = Message { unM :: String }
+newtype Message = Message { unM :: Text }
                   deriving (Show,Eq,Ord,Read,IsString)
 
 
@@ -119,21 +123,22 @@ message s t = Message $ message' s t
 
 message' IsLate   _      = "wordt verondersteld zijn proefschrift te hebben afgerond."
 message' HasOnly (0,m,d) = mconcat [ "heeft nog maar "
-                                  , show m
+                                  , showT m
                                   , " maanden en "
-                                  , show d
+                                  , showT d
                                   , " dagen."
                           ]
-message' HasOnly (y,m,d) = mconcat [ "heeft nog maar ", show y, " jaar"
-                                  , show m
+message' HasOnly (y,m,d) = mconcat [ "heeft nog maar ", showT y, " jaar"
+                                  , showT m
                                   , " maanden en "
-                                  , show d
+                                  , showT d
                                   , " dagen."
                                   ]
-message' s (y,m,d) = show (s,y,m,d)
+message' s (y,m,d) = showT (s,y,m,d)
 
-
-
+homepage   :: Person -> Text
+homepage p = let us = unUI . userId $ p in
+             format "http://www.cs.uu.nl/staff/{}.html" $ Only us
 
 progress   :: Person -> IO (ProgressState,Message)
 progress p = (\t@(y,_,_) -> let s = progressState y in (s, message s t))
@@ -146,36 +151,39 @@ personData p = (\(s,m) -> (p,s,m)) <$> progress p
 --------------------------------------------------------------------------------
 
 
-users = [ Person "staals" Male $ fromDate 2015 08 31
-        , Person "bash"   Male $ fromDate 2012 08 31
+users = [ Person "staals" "Frank Staals" Male $ fromDate 2015 08 31
+        , Person "bash"   "Bas de Haas"  Male $ fromDate 2012 08 31
         ]
 
 
 
 templateDir = "templates/"
-templateExt = ".html"
+htmlTemplateExt    = ".html"
+messageTemplateExt = ".st"
 
 outputFile = "html/generated.html"
 
 
-loadTemplates :: IO (STGroup String)
-loadTemplates = directoryGroupExt templateExt templateDir
+
+loadTemplates :: IO (STGroup Text)
+loadTemplates = mergeSTGroups <$> directoryGroupExt htmlTemplateExt    templateDir
+                              <*> directoryGroupExt messageTemplateExt templateDir
 
 
-itemAttrs                        :: (Person,ProgressState,Message) -> [(String,String)]
-itemAttrs ((Person u g d), p, m) = [ ("progressState", toCssClass p)
-                                   , ("height", show 100)
-                                   , ("picture", unUI u)
-                                   , ("homepage", unUI u)
-                                   , ("name", unUI u)
-                                   , ("message", unM m)
-                                   ]
+itemAttrs                        :: (Person,ProgressState,Message) -> [(String,Text)]
+itemAttrs (per@(Person u n g d), p, m) = [ ("progressState", toCssClass p)
+                                     , ("height", showT 100)
+                                     , ("picture", unUI u)
+                                     , ("homepage", homepage per)
+                                     , ("name", unN n)
+                                     , ("message", unM m)
+                                     ]
 
 
 sortOn   :: Ord b => (a -> b) -> [a] -> [a]
 sortOn k = sortBy (compare `on` k)
 
-mkHtml                    :: [(Person,ProgressState,Message)] -> STGroup String -> Maybe String
+mkHtml                    :: [(Person,ProgressState,Message)] -> STGroup Text -> Maybe Text
 mkHtml userData templates = render' <$> getStringTemplate "item"     templates
                                     <*> getStringTemplate "damokles" templates
   where
@@ -188,4 +196,4 @@ mkHtml userData templates = render' <$> getStringTemplate "item"     templates
 
 main = do mHtml <- mkHtml <$> mapM personData (sortOn dueDate users)
                           <*> loadTemplates
-          writeFile outputFile $ fromMaybe mempty mHtml
+          IO.writeFile outputFile $ fromMaybe mempty mHtml

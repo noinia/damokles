@@ -63,6 +63,8 @@ executable damokles
   build-depends: base                  >=4.7     && < 4.8
                , time                  >= 1.4.2  && < 1.5
                , HStringTemplate       >= 0.7.3  && < 0.7.4
+               , text                  >= 1.0    && < 1.2
+               , text-format           >= 0.3    && < 0.4
 
   -- Directories containing source files.
   -- hs-source-dirs:
