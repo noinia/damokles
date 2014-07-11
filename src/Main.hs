@@ -175,10 +175,10 @@ calcHeight td = Height $ min' + floor (frac * len)
     min' = unH (minBound :: Height)
     len = fromIntegral $ max' - min'
 
-    maxDays = 4*365                  -- Default duration of a Phd = 4 years
+    maxDays = 4*365  -- Default duration of a Phd = 4 years
     frac    :: Double
-    frac    = min 1.0 ((fromInteger td) / maxDays)
-    -- Fraction of the (maximum) time remaining
+    frac    = max 0.0 . min 1.0 $ (fromInteger td) / maxDays
+              -- Fraction of the (maximum) time remaining
 
 --------------------------------------------------------------------------------
 -- | Html templates
@@ -190,11 +190,11 @@ loadTemplates = mergeSTGroups <$> directoryGroupExt htmlTemplateExt    templateD
 
 itemAttrs                                       :: RenderData -> [(String,Text)]
 itemAttrs (RenderData p@(Person u n g d) h s m) = [ ("progressState", toCssClass s)
-                                                  , ("height", showT . unH $ h)
-                                                  , ("picture", unUI u)
-                                                  , ("homepage", homepage p)
-                                                  , ("name", unN n)
-                                                  , ("message", unM m)
+                                                  , ("height",        showT . unH $ h)
+                                                  , ("picture",       unUI u)
+                                                  , ("homepage",      homepage p)
+                                                  , ("name",          unN n)
+                                                  , ("message",       unM m)
                                                   ]
 
 --------------------------------------------------------------------------------
