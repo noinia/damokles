@@ -28,7 +28,7 @@ import qualified Data.Text.Lazy.IO  as IO
 -- | Settings
 
 users = [ Person "staals" "Frank Staals" Male $ fromDate 2015 08 31
-        , Person "bash"   "Bas de Haas"  Male $ fromDate 2012 08 31
+        , Person "bash"   "Bas de Haas"  Female $ fromDate 2012 08 31
         , Person "newguy" "New Guy"      Male $ fromDate 2020 01 01
         ]
 
@@ -144,22 +144,80 @@ newtype Message = Message { unM :: Text }
 
 
 mkMessage     :: ProgressState -> (Year,Month,Day) -> Message
-mkMessage s t = Message $ message' s t
+mkMessage s t = Message $ message'' NL Male s t
 
-message' IsLate   _      = "wordt verondersteld zijn proefschrift te hebben afgerond."
-message' HasOnly (0,m,d) = mconcat [ "heeft nog maar "
-                                  , showT m
-                                  , " maanden en "
-                                  , showT d
-                                  , " dagen."
-                          ]
-message' HasOnly (y,m,d) = mconcat [ "heeft nog maar ", showT y, " jaar"
-                                  , showT m
-                                  , " maanden en "
-                                  , showT d
-                                  , " dagen."
-                                  ]
-message' s (y,m,d) = showT (s,y,m,d)
+
+data Language = NL | EN
+              deriving (Show,Read,Eq)
+
+day, days, month, months, year, years    :: Language -> Text
+day NL = "dag"
+day EN = "day"
+
+days NL = "dagen"
+days EN = "days"
+
+month NL = "maand"
+month EN = "month"
+
+months NL = "maanden"
+months EN = "months"
+
+year NL = "jaar"
+year EN = "year"
+
+years NL = "jaar"
+years EN = "years"
+
+
+mkDays          :: Language -> Year -> Month -> Day -> Text
+mkDays l  0 0 d = mkDays' l d
+mkDays NL _ _ d = "en "  <> mkDays' NL d
+mkDays EN _ _ d = "and " <> mkDays' EN d
+
+mkDays'     :: Language -> Day -> Text
+mkDays' _ 0 = ""
+mkDays' l 1 = format "1 {}"  $ Only (day l)
+mkDays' l d = format "{} {}"   (d, (days l))
+
+mkMonths     :: Language -> Month -> Text
+mkMonths _ 0 = ""
+mkMonths l 1 = format "1 {}"  $ Only (month l)
+mkMonths l m = format "{} {}"   (m,months l)
+
+mkYears     :: Language -> Year -> Text
+mkYears _ 0 = ""
+mkYears l 1 = format "1 {}" $ Only (year l)
+mkYears l y = format "{} {}"  (y,year l)
+
+hisHer           :: Language -> Gender -> Text
+hisHer NL Male   = "zijn"
+hisHer NL Female = "haar"
+hisHer EN Male   = "his"
+hisHer EN Female = "her"
+
+
+isLate, hasOnly, hasStill, mayStill    :: Language -> Format
+isLate NL = "wordt verondersteld {} proefschrift te hebben afgerond."
+isLate EN = "is supposed to be done with {} thesis."
+
+hasOnly NL = "heeft nog maar {} {} {}"
+hasOnly EN = ""
+
+hasStill NL = "heeft nog {} {} {}"
+
+
+hasTo NL = "moet nog {} {} {}"
+
+mayStill NL = "mag nog {} {} {}"
+
+
+message''                      :: Language -> Gender -> ProgressState -> (Year,Month,Day) -> Text
+message'' l g IsLate    _      = format (isLate   l) (Only $ hisHer l g)
+message'' l _ HasOnly  (y,m,d) = format (hasOnly  l) (mkYears l y, mkMonths l m, mkDays l y m d)
+message'' l _ HasStill (y,m,d) = format (hasStill l) (mkYears l y, mkMonths l m, mkDays l y m d)
+message'' l _ HasTo    (y,m,d) = format (hasTo    l) (mkYears l y, mkMonths l m, mkDays l y m d)
+message'' l _ MayStill (y,m,d) = format (mayStill l) (mkYears l y, mkMonths l m, mkDays l y m d)
 
 
 renderData   :: Person -> IO RenderData
