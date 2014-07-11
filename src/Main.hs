@@ -3,6 +3,7 @@
 {-# LANGUAGE ViewPatterns #-}
 module Main where
 
+import Control.Arrow((&&&))
 import Control.Applicative
 
 import Data.Function(on)
@@ -28,6 +29,7 @@ import qualified Data.Text.Lazy.IO  as IO
 
 users = [ Person "staals" "Frank Staals" Male $ fromDate 2015 08 31
         , Person "bash"   "Bas de Haas"  Male $ fromDate 2012 08 31
+        , Person "newguy" "New Guy"      Male $ fromDate 2020 01 01
         ]
 
 
@@ -47,6 +49,8 @@ type Year  = Integer
 type Month = Int
 type Day   = Int
 
+type TotalDays = Integer
+
 fromDate             :: Year -> Month -> Day -> Date
 fromDate yyyy mm dd = Date $ fromGregorian yyyy mm dd
 
@@ -60,8 +64,8 @@ daysUntil                     :: Integral a => Date -> Date -> a
 (Date a) `daysUntil` (Date b) = fromInteger $ b `diffDays` a
 
 
-timeUntil       :: Date -> Date -> (Year, Month, Day)
-a `timeUntil` b = collectTime $ a `daysUntil` b
+timeUntil       :: Date -> Date -> ((Year, Month, Day), TotalDays)
+a `timeUntil` b = collectTime &&& id $ a `daysUntil` b
   where
     collectTime t = let years  = t  `div` 365
                         t'     = fromInteger $ t  `mod` 365
@@ -93,12 +97,7 @@ data Person = Person { userId  :: UserId
                      }
               deriving (Read,Show,Eq)
 
-daysLeft   :: Integral a => Person -> IO a
-daysLeft p = (`daysUntil` dueDate p) <$> today
-
-
-
-timeLeft   :: Person -> IO (Year,Month,Day)
+timeLeft   :: Person -> IO ((Year,Month,Day),TotalDays)
 timeLeft p = (`timeUntil` dueDate p) <$> today
 
 homepage   :: Person -> Text
@@ -166,10 +165,20 @@ message' s (y,m,d) = showT (s,y,m,d)
 renderData   :: Person -> IO RenderData
 renderData p = renderData' <$> timeLeft p
   where
-    renderData' t@(y,_,_) = let s = progressState y in
-                            RenderData p (calcHeight t) s (mkMessage s t)
+    renderData' (tl@(y,_,_),td) = let s = progressState y in
+                                  RenderData p (calcHeight td) s (mkMessage s tl)
 
-calcHeight = const 200
+calcHeight    :: Integer -> Height
+calcHeight td = Height $ min' + floor (frac * len)
+  where
+    max' = unH (maxBound :: Height)
+    min' = unH (minBound :: Height)
+    len = fromIntegral $ max' - min'
+
+    maxDays = 4*365                  -- Default duration of a Phd = 4 years
+    frac    :: Double
+    frac    = min 1.0 ((fromInteger td) / maxDays)
+    -- Fraction of the (maximum) time remaining
 
 --------------------------------------------------------------------------------
 -- | Html templates
